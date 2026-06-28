@@ -138,9 +138,16 @@ export async function getModels() {
     return (response.data.models ?? [])
       .map(normalizeModel)
       .filter((model): model is OllamaModel => model !== null)
-      .sort((first, second) =>
-        first.displayName.localeCompare(second.displayName)
-      );
+      .sort((first, second) => {
+        const firstModifiedAt = first.modifiedAt ? Date.parse(first.modifiedAt) : 0;
+        const secondModifiedAt = second.modifiedAt ? Date.parse(second.modifiedAt) : 0;
+
+        if (firstModifiedAt !== secondModifiedAt) {
+          return secondModifiedAt - firstModifiedAt;
+        }
+
+        return first.displayName.localeCompare(second.displayName);
+      });
   } catch (error) {
     throw friendlyError(error);
   }

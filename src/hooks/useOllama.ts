@@ -4,6 +4,31 @@ import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { HealthStatus, OllamaModel } from "@/types/ollama";
 
+function normalizeModelName(name: string) {
+  return name.replace(/:latest$/, "");
+}
+
+function resolveModelSelection(
+  models: OllamaModel[],
+  selectedModel: string,
+  defaultModel: string
+) {
+  const preferredModels = [selectedModel, defaultModel].filter(Boolean);
+
+  for (const preferred of preferredModels) {
+    const exactMatch = models.find((model) => model.name === preferred);
+    if (exactMatch) return exactMatch.name;
+
+    const normalizedPreferred = normalizeModelName(preferred);
+    const normalizedMatch = models.find(
+      (model) => normalizeModelName(model.name) === normalizedPreferred
+    );
+    if (normalizedMatch) return normalizedMatch.name;
+  }
+
+  return models[0]?.name ?? "";
+}
+
 export function useOllama() {
   const selectedModel = useAppStore((state) => state.settings.selectedModel);
   const defaultModel = useAppStore((state) => state.settings.defaultModel);
@@ -30,16 +55,16 @@ export function useOllama() {
         });
       }
 
-      const preferredModel = selectedModel || defaultModel;
-      const hasPreferredModel = modelResult.models.some(
-        (model) => model.name === preferredModel
+      const resolvedModel = resolveModelSelection(
+        modelResult.models,
+        selectedModel,
+        defaultModel
       );
-      const fallbackModel = modelResult.models[0]?.name ?? "";
 
-      if (!hasPreferredModel && fallbackModel) {
+      if (resolvedModel && (selectedModel !== resolvedModel || defaultModel !== resolvedModel)) {
         setSettings({
-          selectedModel: fallbackModel,
-          defaultModel: defaultModel || fallbackModel,
+          selectedModel: resolvedModel,
+          defaultModel: resolvedModel,
         });
       }
     } catch (error) {

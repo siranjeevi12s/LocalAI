@@ -135,14 +135,23 @@ export function registerOllamaRoutes(app: Express) {
   app.post("/stream", async (request, response) => {
     const abortController = new AbortController();
     let sentDone = false;
+    let clientDisconnected = false;
 
     function sendEvent(event: unknown) {
       response.write(`data: ${JSON.stringify(event)}\n\n`);
     }
 
-    request.on("close", () => {
+    function abortUpstream() {
+      if (sentDone || response.writableEnded || abortController.signal.aborted) {
+        return;
+      }
+
+      clientDisconnected = true;
       abortController.abort();
-    });
+    }
+
+    request.on("aborted", abortUpstream);
+    response.on("close", abortUpstream);
 
     try {
       const body = parseChatBody(request.body);
@@ -205,7 +214,7 @@ export function registerOllamaRoutes(app: Express) {
       });
 
       ollamaStream.on("error", (error) => {
-        if (response.writableEnded) return;
+        if (response.writableEnded || clientDisconnected) return;
 
         sendEvent({
           type: "error",
